@@ -1,0 +1,93 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Juho Pesonen"
+date: "31 December 2016"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. From there you will be able to find more information about the data. 
+
+## Purpose
+The main purpose of this exercise if to find how accelerometer data can be used to predict wheter a person correctly executes unilater dumbbell biceps curl. For this purpose there is a variable classe in the data: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz4UP7Rgq00
+
+## Reading data
+
+```{r}
+trainingData<-read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+testingData<-read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+```
+
+## Installing packages
+```{r}
+require(ggplot2)
+require(caret)
+require(randomForest)
+```
+
+## Probing the data
+
+```{r}
+dim(trainingData)
+dim(testingData)
+nsv<-nearZeroVar(trainingData, saveMetrics=T)
+nsv
+```
+
+We notice that there are a lot of variables that have near zero variance. Even though some of them might be useful for this assignment I am still removing all TRUE variables from the further analysis to keep this straightforward.
+
+```{r}
+trainingData<-trainingData[,-nearZeroVar(trainingData)]
+```
+
+We can still see that there are a lot of variables with missing values. I will now delete all variables with missing values so that they do not interfere with analysis. We also see that X, user_name, timestaps and num_window have nothing to do with accelometers so we remove them too.
+
+```{r}
+trainingData<-trainingData[,!sapply(trainingData,function(x) any(is.na(x)))]
+trainingData$X<- NULL; trainingData$user_name<-trainingData$raw_timestamp_part_1<-trainingData$raw_timestamp_part_2<-trainingData$cvtd_timestamp<-trainingData$num_window<-NULL
+```
+
+## Fitting the model
+Now the data is ready for analysis. I have chosen to use Random Forest approach as it is typically accurate method.
+
+```{r}
+set.seed(1111)
+inTrain<-createDataPartition(y=trainingData$classe, p=0.7, list=FALSE)
+training<-trainingData[inTrain,]
+testing<-trainingData[-inTrain,]
+modelFit<-randomForest(classe~., data=training, type="class")
+```
+
+Data is cross-validated by taking 70 % of the data for training set and 30 % for testing set.
+
+```{r}
+modelFit
+pred<-predict(modelFit,testing)
+confusionMatrix(pred, testing$classe)
+```
+
+The results show that the model is 99.54 % accurate, making the expected out-of-sample error estimate 0.46%.We can now finally predict what the class would be for the testing data subjects:
+
+```{r}
+predictfinal<-predict(modelFit, testingData, type="class")
+predictfinal
+```
